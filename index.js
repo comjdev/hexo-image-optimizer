@@ -25,6 +25,11 @@ const DEFAULT_OPTIONS = {
 	webp: {
 		quality: 80,
 	},
+	background_images: {
+		enabled: true,
+		selector: "[data-background-image]",
+		class: "responsive-background",
+	},
 };
 
 async function generateImageSizes(filePath, options) {
@@ -58,11 +63,27 @@ async function generateImageSizes(filePath, options) {
 			dirName,
 			width: metadata.width,
 			height: metadata.height,
+			format,
 		};
 	} catch (error) {
 		console.error(`Error processing ${filePath}:`, error);
 		return null;
 	}
+}
+
+function generateImageSetCSS(imageData, relativePath) {
+	const { baseName } = imageData;
+	return `
+	background-image: image-set(
+		url("${relativePath}/${baseName}-small.webp") 1x type("image/webp"),
+		url("${relativePath}/${baseName}-medium.webp") 2x type("image/webp"),
+		url("${relativePath}/${baseName}-large.webp") 3x type("image/webp"),
+		url("${relativePath}/${baseName}-small.jpg") 1x type("image/jpeg"),
+		url("${relativePath}/${baseName}-medium.jpg") 2x type("image/jpeg"),
+		url("${relativePath}/${baseName}-large.jpg") 3x type("image/jpeg")
+	);
+	/* Fallback for browsers that don't support image-set() */
+	background-image: url("${relativePath}/${baseName}-large.jpg");`;
 }
 
 async function findAndProcessImages(hexo) {
@@ -82,6 +103,7 @@ async function findAndProcessImages(hexo) {
 	];
 
 	const imageData = new Map();
+	const backgroundImageData = new Map();
 
 	for (const pattern of patterns) {
 		const files = await new Promise((resolve, reject) => {
@@ -94,13 +116,24 @@ async function findAndProcessImages(hexo) {
 		for (const file of files) {
 			const result = await generateImageSizes(file, options);
 			if (result) {
-				imageData.set(file, result);
+				// Check if this is a background image
+				const isBackground =
+					file.includes("background") ||
+					file.includes("bg-") ||
+					file.includes("hero");
+
+				if (isBackground) {
+					backgroundImageData.set(file, result);
+				} else {
+					imageData.set(file, result);
+				}
 			}
 		}
 	}
 
 	// Register a filter to replace image tags with picture elements
 	hexo.extend.filter.register("after_render:html", function (str) {
+		// Process regular images
 		for (const [originalPath, data] of imageData) {
 			const relativePath = path.relative(hexo.base_dir, data.dirName);
 			const pictureElement = `
@@ -116,7 +149,7 @@ async function findAndProcessImages(hexo) {
            (max-width: 1200px) 50vw, 
            800px"
     type="image/webp"
-  >
+  />
   <source 
     srcset="
       ${relativePath}/${data.baseName}-small.jpg 480w, 
@@ -128,14 +161,14 @@ async function findAndProcessImages(hexo) {
            (max-width: 1200px) 50vw, 
            800px"
     type="image/jpeg"
-  >
+  />
   <img 
     src="${relativePath}/${data.baseName}-medium.jpg" 
     alt="${data.baseName}" 
     width="${data.width}" 
     height="${data.height}" 
     loading="lazy"
-  >
+  />
 </picture>`;
 
 			// Replace img tags with the original image src
@@ -145,8 +178,39 @@ async function findAndProcessImages(hexo) {
 			);
 			str = str.replace(imgRegex, pictureElement);
 		}
+
+		// Process background images
+		if (options.background_images.enabled) {
+			for (const [originalPath, data] of backgroundImageData) {
+				const relativePath = path.relative(hexo.base_dir, data.dirName);
+				const imageSetCSS = generateImageSetCSS(data, relativePath);
+
+				// Find elements with this background image
+				const bgRegex = new RegExp(
+					`background-image:\\s*url\\(["']${originalPath}["']\\)`,
+					"g",
+				);
+				str = str.replace(bgRegex, imageSetCSS);
+			}
+		}
+
 		return str;
 	});
+
+	// Add CSS for background images
+	if (options.background_images.enabled) {
+		hexo.extend.filter.register("after_render:html", function (str) {
+			const styleTag = `
+<style>
+.${options.background_images.class} {
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+}
+</style>`;
+			return str.replace("</head>", `${styleTag}</head>`);
+		});
+	}
 }
 
 module.exports = function (hexo) {
