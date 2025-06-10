@@ -1,0 +1,35 @@
+{
+	"name": "hexo-image-optimizer",
+	"version": "1.0.0",
+	"description": "A Hexo plugin that optimizes images using Sharp.",
+	"main": "index.js",
+	"keywords": [
+		"hexo",
+		"plugin",
+		"image",
+		"optimizer",
+		"sharp",
+		"responsive",
+		"webp"
+	],
+	"peerDependencies": {
+		"hexo": ">=5.0.0"
+	},
+	"dependencies": {
+		"sharp": "^0.33.2",
+		"glob": "^10.3.10"
+	},
+	"author": "comjdev",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/comjdev/hexo-image-optimizer.git"
+	},
+	"bugs": {
+		"url": "https://github.com/comjdev/hexo-image-optimizer/issues"
+	},
+	"homepage": "https://github.com/comjdev/hexo-image-optimizer#readme",
+	"publishConfig": {
+		"access": "public"
+	}
+}
